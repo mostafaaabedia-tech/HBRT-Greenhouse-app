@@ -2,39 +2,94 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>HBRT AGRO</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        :root { --bg:#0b1410; --card:rgba(18,31,26,0.8); --border:#1f3a2c; --neon:#39FF14; --orange:#FF8C00; --text:#E0E0E0; --muted:#7A9080; --danger:#FF4C4C; }
+        :root { --bg:#0b1410; --card:rgba(18,31,26,0.8); --border:#1f3a2c; --forest:#2E8B57; --neon:#39FF14; --orange:#FF8C00; --text:#E0E0E0; --muted:#7A9080; --danger:#FF4C4C; --dark:#060d0a; }
         * { box-sizing:border-box; margin:0; padding:0; font-family:'Space Grotesk',sans-serif; -webkit-tap-highlight-color:transparent; user-select:none; }
+        input, textarea { user-select:text; -webkit-user-select:text; }
         body { background:var(--bg); color:var(--text); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
-        .app-header { padding:15px 20px; background:var(--bg); display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); }
-        .app-header h1 { font-size:24px; color:var(--neon); text-shadow:0 0 10px rgba(57,255,20,0.4); }
+        
+        /* Header */
+        .app-header { padding:15px 20px; background:var(--dark); display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); }
+        .app-header h1 { font-size:24px; color:var(--neon); text-shadow:0 0 10px rgba(57,255,20,0.4); font-family:'Oswald',sans-serif; }
         .status-dot { width:10px; height:10px; border-radius:50%; background:var(--danger); transition:0.5s; }
         .status-dot.connected { background:var(--neon); box-shadow:0 0 10px var(--neon); }
-        .app-content { flex:1; overflow-y:auto; padding:20px; padding-bottom:80px; }
-        .input-row { display:flex; gap:10px; margin-bottom:20px; }
-        .ip-input { flex:1; padding:15px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:16px; }
-        .connect-btn { padding:15px 25px; border-radius:12px; border:none; background:var(--neon); color:#000; font-weight:700; text-transform:uppercase; }
-        .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px; }
+        
+        /* Main Content */
+        .app-content { flex:1; overflow-y:auto; padding:20px; padding-bottom:100px; }
+        .view { display:none; }
+        .view.active { display:block; }
+        
+        /* Connection Screen */
+        .fullscreen-overlay { position:fixed; inset:0; background:var(--bg); display:flex; justify-content:center; align-items:center; z-index:1000; }
+        .auth-box { background:var(--card); border:1px solid var(--border); padding:40px; width:90%; max-width:380px; text-align:center; border-radius:24px; backdrop-filter:blur(10px); }
+        .auth-box h2 { color:var(--neon); margin-bottom:10px; font-family:'Oswald',sans-serif; }
+        .auth-box p { font-size:13px; color:var(--muted); margin-bottom:20px; }
+        .auth-box input { width:100%; padding:14px; margin:8px 0; background:var(--dark); border:1px solid var(--border); color:var(--text); text-align:center; font-weight:600; border-radius:12px; }
+        .btn-primary { padding:14px 24px; background:var(--neon); color:#000; font-weight:700; text-transform:uppercase; font-size:16px; border-radius:12px; width:100%; border:none; box-shadow:0 0 15px rgba(57,255,20,0.3); }
+        .btn-secondary { padding:12px 20px; background:transparent; color:var(--orange); border:1px solid var(--orange); font-weight:700; text-transform:uppercase; font-size:14px; border-radius:12px; width:100%; margin-top:10px; }
+        .error-text { color:var(--danger); font-size:12px; margin-top:8px; min-height:16px; font-weight:700; }
+        
+        /* Gauges */
+        .stat-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:15px; margin-bottom:20px; }
         .stat-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; display:flex; flex-direction:column; align-items:center; }
         .stat-card .label { font-size:11px; color:var(--muted); text-transform:uppercase; margin-top:10px; font-weight:700; }
-        .stat-val { font-size:32px; font-weight:700; margin-top:5px; }
-        .bottom-nav { position:fixed; bottom:0; width:100%; background:#060d0a; border-top:1px solid var(--border); display:flex; justify-content:space-around; padding:15px 0; }
-        .nav-btn { background:none; border:none; color:var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; }
-        .nav-btn.active { color:var(--neon); }
-        .view { display:none; } .view.active { display:block; }
+        .ring-wrapper { position:relative; width:120px; height:120px; }
+        .ring-val { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:28px; font-weight:700; }
+        .ring-val span { font-size:14px; color:var(--muted); }
+        .progress-ring { transform:rotate(-90deg); width:120px; height:120px; }
+        .ring-bg { fill:none; stroke:rgba(255,255,255,0.05); stroke-width:8; }
+        .ring-fill { fill:none; stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 0.5s ease; }
+        
+        /* Charts */
+        .chart-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; height:220px; margin-bottom:20px; }
+        .chart-box h3 { font-size:12px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; font-family:'Oswald',sans-serif; }
+        
+        /* Controls */
         .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .ctrl-btn { padding:15px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-weight:700; text-transform:uppercase; font-size:13px; }
         .ctrl-btn.on { background:var(--neon); color:#000; border-color:var(--neon); }
         .ctrl-btn.warn { background:var(--orange); color:#000; border-color:var(--orange); }
         .ctrl-btn.danger { background:var(--danger); color:#fff; border-color:var(--danger); }
         .ctrl-btn.locked { opacity:0.3; pointer-events:none; }
+        
+        /* Bottom Nav */
+        .bottom-nav { position:fixed; bottom:0; width:100%; background:var(--dark); border-top:1px solid var(--border); display:flex; justify-content:space-around; padding:15px 0; padding-bottom:env(safe-area-inset-bottom); z-index:100; }
+        .nav-btn { background:none; border:none; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; display:flex; flex-direction:column; align-items:center; gap:4px; }
+        .nav-btn.active { color:var(--neon); }
+        
+        /* Forms & Tables */
+        .form-card { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:16px; border-radius:16px; }
+        .form-group { margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
+        .form-group label { font-size:13px; color:var(--muted); text-transform:uppercase; font-family:'Oswald',sans-serif; }
+        .form-input { padding:12px; background:var(--dark); border:1px solid var(--border); color:var(--text); border-radius:10px; }
+        .excel-table { width:100%; border-collapse:collapse; font-size:12px; }
+        .excel-table th, .excel-table td { border:1px solid var(--border); padding:8px; text-align:center; }
+        .excel-table th { background:var(--card); color:var(--neon); position:sticky; top:0; }
+        .table-wrapper { overflow-y:auto; max-height:400px; border:1px solid var(--border); border-radius:12px; }
+        .ai-chat-history { height:300px; overflow-y:auto; background:var(--dark); border:1px solid var(--border); border-radius:12px; padding:15px; margin-bottom:15px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
     </style>
 </head>
 <body>
-    <header class="app-header">
+
+    <!-- Connection Screen -->
+    <div id="connectScreen" class="fullscreen-overlay">
+        <div class="auth-box">
+            <h2>HBRT<span style="color:#fff;">.</span> ACCESS</h2>
+            <p>Enter ESP32 Local IP or Cloudflare Tunnel URL</p>
+            <input type="text" id="ipInput" placeholder="192.168.1.50 or https://...">
+            <button id="connectBtn" class="btn-primary">ESTABLISH LINK</button>
+            <div id="connErr" class="error-text"></div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="app-header" style="display:none;" id="appHeader">
         <h1>HBRT<span style="color:#fff;">.</span></h1>
         <div style="display:flex; align-items:center; gap:8px;">
             <div id="statusDot" class="status-dot"></div>
@@ -42,22 +97,25 @@
         </div>
     </header>
 
-    <div class="app-content">
+    <!-- Main Content -->
+    <div class="app-content" id="appContent" style="display:none;">
+        
+        <!-- Dashboard -->
         <div class="view active" id="view-dashboard">
-            <div class="input-row">
-                <input type="text" id="ipInput" class="ip-input" placeholder="ESP32 IP (e.g. 192.168.1.50)">
-                <button id="connectBtn" class="connect-btn">CONNECT</button>
-            </div>
             <div class="stat-grid">
-                <div class="stat-card"><div class="label">Air Temp</div><div class="stat-val" id="temp" style="color:var(--orange);">--</div></div>
-                <div class="stat-card"><div class="label">Humidity</div><div class="stat-val" id="hum" style="color:var(--neon);">--</div></div>
-                <div class="stat-card"><div class="label">Soil Moist</div><div class="stat-val" id="soil" style="color:#2E8B57;">--</div></div>
-                <div class="stat-card"><div class="label">Water Tank</div><div class="stat-val" id="water" style="color:#00aaff;">--</div></div>
+                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_temp" cx="60" cy="60" r="54" style="stroke:var(--orange); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="temp">--</span><span>°C</span></div></div><div class="label">Air Temp</div></div>
+                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_hum" cx="60" cy="60" r="54" style="stroke:var(--neon); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="hum">--</span><span>%</span></div></div><div class="label">Humidity</div></div>
+                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_soil" cx="60" cy="60" r="54" style="stroke:var(--forest); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="soil">--</span><span>%</span></div></div><div class="label">Soil Moist</div></div>
+                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_soiltemp" cx="60" cy="60" r="54" style="stroke:#FFD700; stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="soiltemp">--</span><span>°C</span></div></div><div class="label">Soil Temp</div></div>
+                <div class="stat-card" style="grid-column:span 2;"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_water" cx="60" cy="60" r="54" style="stroke:#00aaff; stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="water">--</span><span>%</span></div></div><div class="label">Water Tank</div></div>
             </div>
+            <div class="chart-box"><h3>Climate / Temp & Hum</h3><canvas id="chartTH"></canvas></div>
+            <div class="chart-box"><h3>Hydration / Soil & Tank</h3><canvas id="chartSW"></canvas></div>
         </div>
 
+        <!-- Controls -->
         <div class="view" id="view-controls">
-            <h2 style="margin-bottom:20px; color:var(--neon);">Manual Overrides</h2>
+            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Manual Overrides</h2>
             <button class="ctrl-btn" id="modeBtn" style="width:100%; margin-bottom:15px;">Switch to Manual</button>
             <div class="ctrl-grid">
                 <button class="ctrl-btn" id="fanBtn" data-device="fan">Fan: OFF</button>
@@ -67,42 +125,103 @@
                 <button class="ctrl-btn" id="ventBtn" data-device="servo" style="grid-column:span 2;">Vent: CLOSED</button>
             </div>
         </div>
+
+        <!-- Data -->
+        <div class="view" id="view-data">
+            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Data Archive</h2>
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <button id="exportCsvBtn" class="btn-secondary">Export CSV</button>
+                <button id="exportPdfBtn" class="btn-secondary">Export PDF</button>
+            </div>
+            <div class="chart-box" style="height:300px; margin-bottom:20px;"><h3>Historical Trend</h3><canvas id="chartHistory"></canvas></div>
+            <div class="table-wrapper">
+                <table class="excel-table">
+                    <thead><tr><th>Time</th><th>Temp</th><th>Hum</th><th>Soil</th><th>STemp</th><th>Water</th><th>Fan</th><th>Pump</th></tr></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AI -->
+        <div class="view" id="view-ai">
+            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">AI Assistant</h2>
+            <div class="ai-chat-history" id="aiOut">STANDBY... AWAITING QUERY.</div>
+            <input type="text" id="aiIn" class="form-input" placeholder="Ask the AI..." style="margin-bottom:10px;">
+            <button id="askAiBtn" class="btn-primary">EXECUTE QUERY</button>
+            <button id="predictHarvestBtn" class="btn-secondary">PREDICT HARVEST</button>
+        </div>
+
+        <!-- Settings -->
+        <div class="view" id="view-settings">
+            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Config</h2>
+            <div class="form-card">
+                <h3 style="color:var(--neon); margin-bottom:15px;">LOCAL AI (OLLAMA)</h3>
+                <div class="form-group"><label>API Endpoint URL</label><input type="text" id="lmUrl" class="form-input" placeholder="http://192.168.1.100:11434/v1/chat/completions"></div>
+                <button id="saveSettingsBtn" class="btn-primary">SAVE CONFIG</button>
+            </div>
+        </div>
     </div>
 
-    <nav class="bottom-nav">
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav" id="bottomNav" style="display:none;">
         <button class="nav-btn active" data-view="dashboard">Dashboard</button>
         <button class="nav-btn" data-view="controls">Controls</button>
+        <button class="nav-btn" data-view="data">Data</button>
+        <button class="nav-btn" data-view="ai">AI</button>
+        <button class="nav-btn" data-view="settings">Config</button>
     </nav>
 
     <script>
         const $ = id => document.getElementById(id);
-        let ws, currentAutoMode = true;
+        let ws, charts = {}, allData = [], currentAutoMode = true, lastSaveTime = 0;
 
+        // --- Connection Logic (Local & Global) ---
         function connectESP() {
-            const ip = $('ipInput').value.trim();
-            if (!ip) return alert("Enter ESP32 IP");
-            if (ws) ws.close();
-            $('modeBadge').textContent = "CONNECTING...";
-            ws = new WebSocket('ws://' + ip + ':81');
-
+            const inputVal = $('ipInput').value.trim();
+            if (!inputVal) return $('connErr').textContent = 'IP OR URL REQUIRED.';
+            localStorage.setItem('esp_ip', inputVal);
+            
+            let wsUrl = '';
+            if (inputVal.startsWith('http')) {
+                let url = new URL(inputVal);
+                wsUrl = 'wss://' + url.hostname; // Global Cloudflare Tunnel
+            } else {
+                wsUrl = 'ws://' + inputVal + ':81'; // Local IP
+            }
+            
+            ws = new WebSocket(wsUrl);
             ws.onopen = () => {
+                $('connectScreen').style.display = 'none';
+                $('appHeader').style.display = 'flex';
+                $('appContent').style.display = 'block';
+                $('bottomNav').style.display = 'flex';
                 $('statusDot').classList.add('connected');
-                $('modeBadge').textContent = "AUTO";
+                loadSettings();
             };
-
+            ws.onclose = () => {
+                $('connectScreen').style.display = 'flex';
+                $('appHeader').style.display = 'none';
+                $('appContent').style.display = 'none';
+                $('bottomNav').style.display = 'none';
+                $('connErr').textContent = 'LINK SEVERED. CHECK IP OR TUNNEL.';
+            };
             ws.onmessage = (e) => {
                 const d = JSON.parse(e.data);
                 updateUI(d);
-            };
-
-            ws.onclose = () => {
-                $('statusDot').classList.remove('connected');
-                $('modeBadge').textContent = "DISCONNECTED";
+                updateCharts(d);
+                allData.push({...d, time: new Date().toLocaleTimeString()});
+                if (allData.length > 150) allData.shift();
+                if (Date.now() - lastSaveTime > 30000) { localStorage.setItem('abrt_data', JSON.stringify(allData)); lastSaveTime = Date.now(); }
             };
         }
 
-        function sendCmd(device, value) {
-            if (ws && ws.readyState === 1) ws.send(JSON.stringify({ device, value }));
+        function sendCmd(device, value) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ device, value })); }
+
+        // --- UI & Gauges ---
+        function setRingProgress(id, val, max) {
+            const ring = $(id); if(!ring) return;
+            const c = 2 * Math.PI * 54; const p = Math.min(val/max, 1);
+            ring.style.strokeDashoffset = c * (1 - p);
         }
 
         function updateUI(d) {
@@ -111,10 +230,11 @@
             $('modeBtn').textContent = currentAutoMode ? 'Switch to Manual' : 'Switch to Auto';
             $('modeBtn').className = 'ctrl-btn ' + (currentAutoMode ? 'on' : '');
             
-            $('temp').textContent = d.temperature.toFixed(1) + "°C";
-            $('hum').textContent = d.humidity.toFixed(1) + "%";
-            $('soil').textContent = d.soil + "%";
-            $('water').textContent = d.water + "%";
+            $('temp').textContent = d.temperature.toFixed(1); setRingProgress('ring_temp', d.temperature, 50);
+            $('hum').textContent = d.humidity.toFixed(1); setRingProgress('ring_hum', d.humidity, 100);
+            $('soil').textContent = d.soil; setRingProgress('ring_soil', d.soil, 100);
+            $('soiltemp').textContent = d.soilTemp.toFixed(1); setRingProgress('ring_soiltemp', d.soilTemp, 50);
+            $('water').textContent = d.water; setRingProgress('ring_water', d.water, 100);
             
             $('fanBtn').textContent = `Fan: ${d.fan ? 'ON' : 'OFF'}`; $('fanBtn').className = 'ctrl-btn ' + (d.fan ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
             $('pumpBtn').textContent = `Pump: ${d.pump ? 'ON' : 'OFF'}`; $('pumpBtn').className = 'ctrl-btn ' + (d.pump ? 'danger' : '') + (currentAutoMode ? ' locked' : '');
@@ -123,11 +243,60 @@
             $('ventBtn').textContent = `Vent: ${d.servo ? 'OPEN' : 'CLOSED'}`; $('ventBtn').className = 'ctrl-btn ' + (d.servo ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
         }
 
+        // --- Charts ---
+        function makeChart(ctx, datasets) {
+            return new Chart(ctx, { type: 'line', data: { labels: [], datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: '#E0E0E0' } } }, scales: { x: { display: false }, y: { ticks: { color: '#7A9080' }, grid: { color: 'rgba(46,139,87,0.1)' } } } } });
+        }
+        charts.th = makeChart($('chartTH').getContext('2d'), [{label:'Temp',data:[],borderColor:'#FF8C00',tension:.3,borderWidth:2},{label:'Hum',data:[],borderColor:'#39FF14',tension:.3,borderWidth:2}]);
+        charts.sw = makeChart($('chartSW').getContext('2d'), [{label:'Soil',data:[],borderColor:'#2E8B57',tension:.3,borderWidth:2},{label:'Tank',data:[],borderColor:'#00aaff',tension:.3,borderWidth:2}]);
+        charts.hist = makeChart($('chartHistory').getContext('2d'), [{label:'Temp',data:[],borderColor:'#FF8C00',tension:.3,borderWidth:2},{label:'Hum',data:[],borderColor:'#39FF14',tension:.3,borderWidth:2},{label:'Soil',data:[],borderColor:'#2E8B57',tension:.3,borderWidth:2},{label:'Tank',data:[],borderColor:'#00aaff',tension:.3,borderWidth:2}]);
+
+        function updateCharts(d) {
+            if(charts.th.data.labels.length > 30) { charts.th.data.labels.shift(); charts.sw.data.labels.shift(); charts.th.data.datasets[0].data.shift(); charts.th.data.datasets[1].data.shift(); charts.sw.data.datasets[0].data.shift(); charts.sw.data.datasets[1].data.shift(); }
+            charts.th.data.labels.push(''); charts.sw.data.labels.push('');
+            charts.th.data.datasets[0].data.push(d.temperature); charts.th.data.datasets[1].data.push(d.humidity);
+            charts.sw.data.datasets[0].data.push(d.soil); charts.sw.data.datasets[1].data.push(d.water);
+            charts.th.update('none'); charts.sw.update('none');
+        }
+
+        // --- Data & PDF ---
+        function renderTable() {
+            $('tableBody').innerHTML = allData.slice().reverse().map(r => `<tr><td>${r.time}</td><td>${r.temperature.toFixed(1)}</td><td>${r.humidity.toFixed(1)}</td><td>${r.soil}</td><td>${r.soilTemp.toFixed(1)}</td><td>${r.water}</td><td>${r.fan?'ON':'OFF'}</td><td>${r.pump?'ON':'OFF'}</td></tr>`).join('');
+            const r = allData.slice(-100);
+            charts.hist.data.labels = r.map(d=>d.time); charts.hist.data.datasets[0].data = r.map(d=>d.temperature); charts.hist.data.datasets[1].data = r.map(d=>d.humidity); charts.hist.data.datasets[2].data = r.map(d=>d.soil); charts.hist.data.datasets[3].data = r.map(d=>d.water);
+            charts.hist.update();
+        }
+        function exportCSV() {
+            let csv = "Time,Temp,Hum,Soil,SoilTemp,Water,Fan,Pump,Lights,Heater,Vent\n";
+            allData.forEach(r => { csv += `${r.time},${r.temperature},${r.humidity},${r.soil},${r.soilTemp},${r.water},${r.fan},${r.pump},${r.lights},${r.heater},${r.servo}\n`; });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "hbrt_backup.csv"; a.click();
+        }
+        function exportPDF() {
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            doc.setFillColor(11, 20, 16); doc.rect(0, 0, 210, 40, 'F'); doc.setTextColor(57, 255, 20); doc.setFontSize(24); doc.text("HBRT GREENHOUSE REPORT", 105, 25, { align: 'center' });
+            doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 50);
+            const imgData = charts.hist.toBase64Image(); doc.addImage(imgData, 'PNG', 20, 60, 170, 80);
+            doc.save("HBRT_Greenhouse_Report.pdf");
+        }
+
+        // --- AI ---
+        function saveSettings() { localStorage.setItem('lm_url', $('lmUrl').value); alert("SAVED!"); }
+        function loadSettings() { $('lmUrl').value = localStorage.getItem('lm_url') || 'http://192.168.1.100:11434/v1/chat/completions'; }
+        async function callAI(prompt) {
+            $('aiOut').textContent = "PROCESSING QUERY...";
+            try {
+                const res = await fetch($('lmUrl').value, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: "qwen2.5:1.5b", messages: [{role: "user", content: prompt}], temperature: 0.7 }) });
+                const data = await res.json(); $('aiOut').textContent = data.choices[0].message.content;
+            } catch (e) { $('aiOut').textContent = "ERROR: AI CORE UNREACHABLE."; }
+        }
+
+        // --- Events ---
         document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             $('view-' + btn.dataset.view).classList.add('active');
             btn.classList.add('active');
+            if (btn.dataset.view === 'data') renderTable();
         }));
 
         $('connectBtn').addEventListener('click', connectESP);
@@ -138,6 +307,24 @@
             if(dev === 'pump') state = btn.classList.contains('danger');
             sendCmd(dev, !state);
         }));
+        $('exportCsvBtn').addEventListener('click', exportCSV);
+        $('exportPdfBtn').addEventListener('click', exportPDF);
+        $('saveSettingsBtn').addEventListener('click', saveSettings);
+        $('askAiBtn').addEventListener('click', () => {
+            const t = $('temp').textContent, h = $('hum').textContent, s = $('soil').textContent, st = $('soiltemp').textContent, w = $('water').textContent;
+            callAI(`You are an AI greenhouse core. Data: Temp=${t}C, Hum=${h}%, Soil=${s}%, SoilTemp=${st}C, Water=${w}%. Question: ${$('aiIn').value || "Provide a 1 sentence status summary."}`);
+        });
+        $('predictHarvestBtn').addEventListener('click', () => {
+            if (allData.length < 10) return alert("NOT ENOUGH DATA. WAIT 20 SECONDS.");
+            const avgT = (allData.reduce((a,b) => a + b.temperature, 0) / allData.length).toFixed(1);
+            const avgH = (allData.reduce((a,b) => a + b.humidity, 0) / allData.length).toFixed(1);
+            const avgS = (allData.reduce((a,b) => a + b.soil, 0) / allData.length).toFixed(1);
+            const avgST = (allData.reduce((a,b) => a + b.soilTemp, 0) / allData.length).toFixed(1);
+            callAI(`You are an expert agronomist AI. Based on greenhouse averages: Temp=${avgT}C, Hum=${avgH}%, Soil=${avgS}%, SoilTemp=${avgST}C. Predict harvest date and yield for tomatoes.`);
+        });
+
+        // Init
+        const savedIp = localStorage.getItem('esp_ip'); if (savedIp) $('ipInput').value = savedIp;
     </script>
 </body>
 </html>
