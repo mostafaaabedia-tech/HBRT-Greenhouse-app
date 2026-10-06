@@ -1,0 +1,52 @@
+name: Build HBRT App
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          
+      - name: Init Capacitor Project
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android@5
+          npx cap init "HBRT AGRO" com.hbrt.agro --web-dir=.
+          
+      - name: Add Android Platform
+        run: npx cap add android
+        
+      - name: Force Allow Cleartext Traffic (ws:// fix)
+        run: sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+        
+      - name: Build APK
+        run: |
+          npx cap copy
+          cd android
+          ./gradlew assembleDebug --no-daemon
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HBRT-AGRO-App
+          path: android/app/build/outputs/apk/debug/app-debug.apk
