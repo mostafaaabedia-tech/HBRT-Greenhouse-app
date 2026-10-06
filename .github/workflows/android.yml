@@ -27,9 +27,11 @@ jobs:
           
       - name: Init Capacitor Project
         run: |
+          mkdir www
+          cp index.html www/index.html
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android@5
-          npx cap init "HBRT AGRO" com.hbrt.agro --web-dir=.
+          npx cap init "HBRT AGRO" com.hbrt.agro --web-dir=www
           
       - name: Add Android Platform
         run: npx cap add android
