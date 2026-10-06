@@ -10,21 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
-          
+          java-version: '21'
+
       - name: Accept Android Licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          
+
       - name: Init Capacitor Project
         run: |
           mkdir www
@@ -32,19 +32,19 @@ jobs:
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android@5
           npx cap init "HBRT AGRO" com.hbrt.agro --web-dir=www
-          
+
       - name: Add Android Platform
         run: npx cap add android
-        
+
       - name: Force Allow Cleartext Traffic (ws:// fix)
         run: sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
-        
+
       - name: Build APK
         run: |
           npx cap copy
           cd android
           ./gradlew assembleDebug --no-daemon
-          
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
