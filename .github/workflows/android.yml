@@ -7,14 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -22,13 +22,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        
-      - name: Accept Licenses & Install SDK
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+      - name: Accept Android Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           
       - name: Init Capacitor Project
         run: |
