@@ -1,359 +1,486 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <!-- FIXED: Added viewport-fit=cover to stretch into safe zones -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>HBRT AGRO</title>
-    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;500;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <style>
-        :root { --bg:#0b1410; --card:rgba(18,31,26,0.8); --border:#1f3a2c; --forest:#2E8B57; --neon:#39FF14; --orange:#FF8C00; --text:#E0E0E0; --muted:#7A9080; --danger:#FF4C4C; --dark:#060d0a; }
-        * { box-sizing:border-box; margin:0; padding:0; font-family:'Space Grotesk',sans-serif; -webkit-tap-highlight-color:transparent; user-select:none; }
-        input, textarea { user-select:text; -webkit-user-select:text; }
-        body { background:var(--bg); color:var(--text); height:100vh; width: 100vw; overflow:hidden; display:flex; flex-direction:column; }
-        
-        /* FIXED: Header dynamically resizes to fit notches */
-        .app-header { 
-            padding: calc(15px + env(safe-area-inset-top)) 20px 15px 20px; 
-            background:var(--dark); 
-            display:flex; 
-            justify-content:space-between; 
-            align-items:center; 
-            border-bottom:1px solid var(--border); 
-            flex-shrink: 0; 
-            z-index: 10;
-        }
-        .app-header h1 { font-size:24px; color:var(--neon); text-shadow:0 0 10px rgba(57,255,20,0.4); font-family:'Oswald',sans-serif; }
-        .status-dot { width:10px; height:10px; border-radius:50%; background:var(--danger); transition:0.5s; }
-        .status-dot.connected { background:var(--neon); box-shadow:0 0 10px var(--neon); }
-        
-        /* FIXED: Content resizes dynamically between header and footer */
-        .app-content { 
-            flex:1; 
-            overflow-y:auto; 
-            padding:20px; 
-            padding-bottom: calc(90px + env(safe-area-inset-bottom)); 
-            -webkit-overflow-scrolling: touch;
-        }
-        .view { display:none; }
-        .view.active { display:block; }
-        
-        /* Connection Screen */
-        .fullscreen-overlay { position:fixed; inset:0; background:var(--bg); display:flex; justify-content:center; align-items:center; z-index:1000; padding: 20px; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-        .auth-box { background:var(--card); border:1px solid var(--border); padding:40px; width:100%; max-width:380px; text-align:center; border-radius:24px; backdrop-filter:blur(10px); }
-        .auth-box h2 { color:var(--neon); margin-bottom:10px; font-family:'Oswald',sans-serif; }
-        .auth-box p { font-size:13px; color:var(--muted); margin-bottom:20px; }
-        .auth-box input { width:100%; padding:14px; margin:8px 0; background:var(--dark); border:1px solid var(--border); color:var(--text); text-align:center; font-weight:600; border-radius:12px; }
-        .btn-primary { padding:14px 24px; background:var(--neon); color:#000; font-weight:700; text-transform:uppercase; font-size:16px; border-radius:12px; width:100%; border:none; box-shadow:0 0 15px rgba(57,255,20,0.3); }
-        .btn-secondary { padding:12px 20px; background:transparent; color:var(--orange); border:1px solid var(--orange); font-weight:700; text-transform:uppercase; font-size:14px; border-radius:12px; width:100%; margin-top:10px; }
-        .error-text { color:var(--danger); font-size:12px; margin-top:8px; min-height:16px; font-weight:700; }
-        
-        /* Gauges */
-        .stat-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:15px; margin-bottom:20px; }
-        .stat-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; display:flex; flex-direction:column; align-items:center; }
-        .stat-card .label { font-size:11px; color:var(--muted); text-transform:uppercase; margin-top:10px; font-weight:700; }
-        .ring-wrapper { position:relative; width:120px; height:120px; }
-        .ring-val { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:28px; font-weight:700; }
-        .ring-val span { font-size:14px; color:var(--muted); }
-        .progress-ring { transform:rotate(-90deg); width:120px; height:120px; }
-        .ring-bg { fill:none; stroke:rgba(255,255,255,0.05); stroke-width:8; }
-        .ring-fill { fill:none; stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 0.5s ease; }
-        
-        /* Charts */
-        .chart-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; height:220px; margin-bottom:20px; }
-        .chart-box h3 { font-size:12px; color:var(--muted); margin-bottom:10px; text-transform:uppercase; font-family:'Oswald',sans-serif; }
-        
-        /* Controls */
-        .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-        .ctrl-btn { padding:15px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-weight:700; text-transform:uppercase; font-size:13px; }
-        .ctrl-btn.on { background:var(--neon); color:#000; border-color:var(--neon); }
-        .ctrl-btn.warn { background:var(--orange); color:#000; border-color:var(--orange); }
-        .ctrl-btn.danger { background:var(--danger); color:#fff; border-color:var(--danger); }
-        .ctrl-btn.locked { opacity:0.3; pointer-events:none; }
-        
-        /* FIXED: Bottom Nav dynamically resizes to fit gesture bars */
-        .bottom-nav { 
-            position:fixed; 
-            bottom:0; 
-            left:0; 
-            width:100%; 
-            background:var(--dark); 
-            border-top:1px solid var(--border); 
-            display:flex; 
-            justify-content:space-around; 
-            padding:12px 0; 
-            padding-bottom: calc(12px + env(safe-area-inset-bottom)); 
-            z-index:100; 
-            flex-shrink: 0;
-        }
-        .nav-btn { background:none; border:none; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; display:flex; flex-direction:column; align-items:center; gap:4px; }
-        .nav-btn.active { color:var(--neon); }
-        
-        /* Forms & Tables */
-        .form-card { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:16px; border-radius:16px; }
-        .form-group { margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
-        .form-group label { font-size:13px; color:var(--muted); text-transform:uppercase; font-family:'Oswald',sans-serif; }
-        .form-input { padding:12px; background:var(--dark); border:1px solid var(--border); color:var(--text); border-radius:10px; }
-        .excel-table { width:100%; border-collapse:collapse; font-size:12px; }
-        .excel-table th, .excel-table td { border:1px solid var(--border); padding:8px; text-align:center; }
-        .excel-table th { background:var(--card); color:var(--neon); position:sticky; top:0; }
-        .table-wrapper { overflow-y:auto; max-height:400px; border:1px solid var(--border); border-radius:12px; }
-        .ai-chat-history { height:300px; overflow-y:auto; background:var(--dark); border:1px solid var(--border); border-radius:12px; padding:15px; margin-bottom:15px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>HBRT AGRO</title>
+<!-- Libraries are bundled locally by the GitHub workflow, so the app works with no internet (greenhouse Wi-Fi only) -->
+<script src="lib/chart.umd.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#0b1410;--card:rgba(18,31,26,.8);--border:#1f3a2c;--forest:#2E8B57;--neon:#39FF14;--orange:#FF8C00;--text:#E0E0E0;--muted:#7A9080;--danger:#FF4C4C;--dark:#060d0a;--head:'Oswald','Arial Narrow',Impact,sans-serif;--body:'Space Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0;font-family:var(--body);-webkit-tap-highlight-color:transparent;user-select:none}
+input,textarea{user-select:text;-webkit-user-select:text}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);height:100vh;height:100dvh;width:100vw;overflow:hidden;display:flex;flex-direction:column}
+.app-header{padding:calc(12px + max(env(safe-area-inset-top),24px)) 20px 12px;background:var(--dark);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0;z-index:10}
+.app-header h1{font-size:24px;color:var(--neon);text-shadow:0 0 10px rgba(57,255,20,.4);font-family:var(--head)}
+.status-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);transition:.5s}
+.status-dot.connected{background:var(--neon);box-shadow:0 0 10px var(--neon)}
+.status-dot.connecting{background:var(--orange);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.conn-banner{display:none;background:var(--orange);color:#000;font-size:12px;font-weight:700;text-align:center;padding:6px;flex-shrink:0}
+.conn-banner.show{display:block}
+.app-content{flex:1;overflow-y:auto;padding:20px;padding-bottom:calc(90px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.view{display:none}.view.active{display:block}
+.view h2{margin-bottom:20px;color:var(--neon);font-family:var(--head)}
+.fullscreen-overlay{position:fixed;inset:0;background:var(--bg);display:flex;justify-content:center;align-items:center;z-index:1000;padding:20px;padding-top:max(env(safe-area-inset-top),24px);padding-bottom:env(safe-area-inset-bottom)}
+.auth-box{background:var(--card);border:1px solid var(--border);padding:36px 30px;width:100%;max-width:380px;text-align:center;border-radius:24px}
+.auth-box h2{color:var(--neon);margin-bottom:10px;font-family:var(--head)}
+.auth-box p{font-size:13px;color:var(--muted);margin-bottom:20px}
+.auth-box input{width:100%;padding:14px;margin:8px 0;background:var(--dark);border:1px solid var(--border);color:var(--text);text-align:center;font-weight:600;border-radius:12px}
+.credit{margin-top:22px;font-size:11px;color:var(--muted);line-height:1.6}.credit b{color:var(--text);font-weight:600}
+.btn-primary{padding:14px 24px;background:var(--neon);color:#000;font-weight:700;text-transform:uppercase;font-size:16px;border-radius:12px;width:100%;border:none;box-shadow:0 0 15px rgba(57,255,20,.3)}
+.btn-secondary{padding:12px 20px;background:transparent;color:var(--orange);border:1px solid var(--orange);font-weight:700;text-transform:uppercase;font-size:14px;border-radius:12px;width:100%;margin-top:10px}
+.error-text{color:var(--danger);font-size:12px;margin-top:8px;min-height:16px;font-weight:700}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;display:flex;flex-direction:column;align-items:center}
+.stat-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:10px;font-weight:700}
+.ring-wrapper{position:relative;width:120px;height:120px}
+.ring-val{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:28px;font-weight:700}
+.ring-val span{font-size:14px;color:var(--muted)}
+.progress-ring{transform:rotate(-90deg);width:120px;height:120px}
+.ring-bg{fill:none;stroke:rgba(255,255,255,.05);stroke-width:8}
+.ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;height:220px;margin-bottom:20px}
+.chart-box h3{font-size:12px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;font-family:var(--head)}
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ctrl-btn{padding:15px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-weight:700;text-transform:uppercase;font-size:13px}
+.ctrl-btn.on{background:var(--neon);color:#000;border-color:var(--neon)}
+.ctrl-btn.warn{background:var(--orange);color:#000;border-color:var(--orange)}
+.ctrl-btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.ctrl-btn.locked{opacity:.3;pointer-events:none}
+.ctrl-btn.estop{width:100%;margin-top:15px;border-color:var(--danger);color:var(--danger);background:transparent}
+.form-card{background:var(--card);border:1px solid var(--border);padding:20px;margin-bottom:16px;border-radius:16px}
+.form-card h3{color:var(--neon);margin-bottom:15px;font-family:var(--head)}
+.form-group{margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.form-group label{font-size:13px;color:var(--muted);text-transform:uppercase;font-family:var(--head)}
+.form-input{padding:12px;background:var(--dark);border:1px solid var(--border);color:var(--text);border-radius:10px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.excel-table{width:100%;border-collapse:collapse;font-size:12px}
+.excel-table th,.excel-table td{border:1px solid var(--border);padding:8px;text-align:center}
+.excel-table th{background:var(--dark);color:var(--neon);position:sticky;top:0}
+.table-wrapper{overflow:auto;max-height:400px;border:1px solid var(--border);border-radius:12px;margin-bottom:20px}
+.ai-chat-history{height:300px;overflow-y:auto;background:var(--dark);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:15px;font-size:14px;line-height:1.5;white-space:pre-wrap;user-select:text}
+.alert-box{border:1px solid var(--danger);background:rgba(255,76,76,.1);border-radius:12px;padding:12px 15px;margin-bottom:15px;font-size:13px;font-weight:700;color:var(--danger);display:none;line-height:1.7}
+.alert-box.show{display:block}
+.sys-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:20px}
+.sys-row b{color:var(--text)}
+.log-row{font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);color:var(--muted)}.log-row b{color:var(--danger)}
+.bottom-nav{position:fixed;bottom:0;left:0;width:100%;background:var(--dark);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:12px 0;padding-bottom:calc(12px + env(safe-area-inset-bottom));z-index:100}
+.nav-btn{background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase}
+.nav-btn.active{color:var(--neon)}
+#toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--neon);color:#000;font-weight:700;font-size:13px;padding:10px 18px;border-radius:20px;z-index:2000;opacity:0;pointer-events:none;transition:opacity .3s}
+#toast.show{opacity:1}
+</style>
 </head>
 <body>
 
-    <!-- Connection Screen -->
-    <div id="connectScreen" class="fullscreen-overlay">
-        <div class="auth-box">
-            <h2>HBRT<span style="color:#fff;">.</span> ACCESS</h2>
-            <p>Enter ESP32 Local IP or Cloudflare Tunnel URL</p>
-            <input type="text" id="ipInput" placeholder="192.168.1.50 or https://...">
-            <button id="connectBtn" class="btn-primary">ESTABLISH LINK</button>
-            <div id="connErr" class="error-text"></div>
-        </div>
+<div id="connectScreen" class="fullscreen-overlay">
+  <div class="auth-box">
+    <h2>HBRT<span style="color:#fff">.</span> ACCESS</h2>
+    <p>Enter ESP32 Local IP or Cloudflare Tunnel URL</p>
+    <input type="text" id="ipInput" placeholder="192.168.1.50 or https://..." autocapitalize="off" autocomplete="off">
+    <button id="connectBtn" class="btn-primary">ESTABLISH LINK</button>
+    <div id="connErr" class="error-text"></div>
+    <div class="credit">Developed by<br><b>Mostafa Mesbah Aabedi</b><br><b>Milad Ahmadi</b></div>
+  </div>
+</div>
+
+<header class="app-header" style="display:none" id="appHeader">
+  <h1>HBRT<span style="color:#fff">.</span></h1>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div id="statusDot" class="status-dot"></div>
+    <span id="modeBadge" style="font-size:12px;font-weight:700;color:var(--muted)">OFFLINE</span>
+  </div>
+</header>
+<div class="conn-banner" id="connBanner"></div>
+
+<div class="app-content" id="appContent" style="display:none">
+
+  <div class="view active" id="view-dashboard">
+    <div class="alert-box" id="alertBox"></div>
+    <div class="sys-row"><span>Wi-Fi <b id="sysRssi">--</b></span><span>Uptime <b id="sysUp">--</b></span><span>Update <b id="sysAge">--</b></span></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fill" id="ring_temp" cx="60" cy="60" r="54" style="stroke:var(--orange);stroke-dasharray:339;stroke-dashoffset:339"/></svg><div class="ring-val"><span id="temp">--</span><span>°C</span></div></div><div class="label">Air Temp</div></div>
+      <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fill" id="ring_hum" cx="60" cy="60" r="54" style="stroke:var(--neon);stroke-dasharray:339;stroke-dashoffset:339"/></svg><div class="ring-val"><span id="hum">--</span><span>%</span></div></div><div class="label">Humidity</div></div>
+      <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fill" id="ring_soil" cx="60" cy="60" r="54" style="stroke:var(--forest);stroke-dasharray:339;stroke-dashoffset:339"/></svg><div class="ring-val"><span id="soil">--</span><span>%</span></div></div><div class="label">Soil Moist</div></div>
+      <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fill" id="ring_soiltemp" cx="60" cy="60" r="54" style="stroke:#FFD700;stroke-dasharray:339;stroke-dashoffset:339"/></svg><div class="ring-val"><span id="soiltemp">--</span><span>°C</span></div></div><div class="label">Soil Temp</div></div>
+      <div class="stat-card" style="grid-column:span 2"><div class="ring-wrapper"><svg class="progress-ring"><circle class="ring-bg" cx="60" cy="60" r="54"/><circle class="ring-fill" id="ring_water" cx="60" cy="60" r="54" style="stroke:#00aaff;stroke-dasharray:339;stroke-dashoffset:339"/></svg><div class="ring-val"><span id="water">--</span><span>%</span></div></div><div class="label">Water Tank</div></div>
     </div>
+    <div class="chart-box"><h3>Climate / Temp &amp; Hum</h3><canvas id="chartTH"></canvas></div>
+    <div class="chart-box"><h3>Hydration / Soil &amp; Tank</h3><canvas id="chartSW"></canvas></div>
+  </div>
 
-    <!-- Header -->
-    <header class="app-header" style="display:none;" id="appHeader">
-        <h1>HBRT<span style="color:#fff;">.</span></h1>
-        <div style="display:flex; align-items:center; gap:8px;">
-            <div id="statusDot" class="status-dot"></div>
-            <span id="modeBadge" style="font-size:12px; font-weight:700; color:var(--muted);">DISCONNECTED</span>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <div class="app-content" id="appContent" style="display:none;">
-        
-        <!-- Dashboard -->
-        <div class="view active" id="view-dashboard">
-            <div class="stat-grid">
-                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_temp" cx="60" cy="60" r="54" style="stroke:var(--orange); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="temp">--</span><span>°C</span></div></div><div class="label">Air Temp</div></div>
-                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_hum" cx="60" cy="60" r="54" style="stroke:var(--neon); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="hum">--</span><span>%</span></div></div><div class="label">Humidity</div></div>
-                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_soil" cx="60" cy="60" r="54" style="stroke:var(--forest); stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="soil">--</span><span>%</span></div></div><div class="label">Soil Moist</div></div>
-                <div class="stat-card"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_soiltemp" cx="60" cy="60" r="54" style="stroke:#FFD700; stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="soiltemp">--</span><span>°C</span></div></div><div class="label">Soil Temp</div></div>
-                <div class="stat-card" style="grid-column:span 2;"><div class="ring-wrapper"><svg class="progress-ring" width="120" height="120"><circle class="ring-bg" cx="60" cy="60" r="54"></circle><circle class="ring-fill" id="ring_water" cx="60" cy="60" r="54" style="stroke:#00aaff; stroke-dasharray:339; stroke-dashoffset:339;"></circle></svg><div class="ring-val"><span id="water">--</span><span>%</span></div></div><div class="label">Water Tank</div></div>
-            </div>
-            <div class="chart-box"><h3>Climate / Temp & Hum</h3><canvas id="chartTH"></canvas></div>
-            <div class="chart-box"><h3>Hydration / Soil & Tank</h3><canvas id="chartSW"></canvas></div>
-        </div>
-
-        <!-- Controls -->
-        <div class="view" id="view-controls">
-            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Manual Overrides</h2>
-            <button class="ctrl-btn" id="modeBtn" style="width:100%; margin-bottom:15px;">Switch to Manual</button>
-            <div class="ctrl-grid">
-                <button class="ctrl-btn" id="fanBtn" data-device="fan">Fan: OFF</button>
-                <button class="ctrl-btn" id="pumpBtn" data-device="pump">Pump: OFF</button>
-                <button class="ctrl-btn" id="lightsBtn" data-device="lights">Lights: OFF</button>
-                <button class="ctrl-btn" id="heaterBtn" data-device="heater">Heater: OFF</button>
-                <button class="ctrl-btn" id="ventBtn" data-device="servo" style="grid-column:span 2;">Vent: CLOSED</button>
-            </div>
-        </div>
-
-        <!-- Data -->
-        <div class="view" id="view-data">
-            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Data Archive</h2>
-            <div style="display:flex; gap:10px; margin-bottom:20px;">
-                <button id="exportCsvBtn" class="btn-secondary">Export CSV</button>
-                <button id="exportPdfBtn" class="btn-secondary">Export PDF</button>
-            </div>
-            <div class="chart-box" style="height:300px; margin-bottom:20px;"><h3>Historical Trend</h3><canvas id="chartHistory"></canvas></div>
-            <div class="table-wrapper">
-                <table class="excel-table">
-                    <thead><tr><th>Time</th><th>Temp</th><th>Hum</th><th>Soil</th><th>STemp</th><th>Water</th><th>Fan</th><th>Pump</th></tr></thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- AI -->
-        <div class="view" id="view-ai">
-            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">AI Assistant</h2>
-            <div class="ai-chat-history" id="aiOut">STANDBY... AWAITING QUERY.</div>
-            <input type="text" id="aiIn" class="form-input" placeholder="Ask the AI..." style="margin-bottom:10px;">
-            <button id="askAiBtn" class="btn-primary">EXECUTE QUERY</button>
-            <button id="predictHarvestBtn" class="btn-secondary">PREDICT HARVEST</button>
-        </div>
-
-        <!-- Settings -->
-        <div class="view" id="view-settings">
-            <h2 style="margin-bottom:20px; color:var(--neon); font-family:'Oswald',sans-serif;">Config</h2>
-            <div class="form-card">
-                <h3 style="color:var(--neon); margin-bottom:15px;">LOCAL AI (OLLAMA)</h3>
-                <div class="form-group"><label>API Endpoint URL</label><input type="text" id="lmUrl" class="form-input" placeholder="http://192.168.1.100:11434/v1/chat/completions"></div>
-                <button id="saveSettingsBtn" class="btn-primary">SAVE CONFIG</button>
-            </div>
-        </div>
+  <div class="view" id="view-controls">
+    <h2>Manual Overrides</h2>
+    <button class="ctrl-btn" id="modeBtn" style="width:100%;margin-bottom:15px">Switch to Manual</button>
+    <div class="ctrl-grid">
+      <button class="ctrl-btn" id="fanBtn" data-device="fan">Fan: OFF</button>
+      <button class="ctrl-btn" id="pumpBtn" data-device="pump">Pump: OFF</button>
+      <button class="ctrl-btn" id="lightsBtn" data-device="lights">Lights: OFF</button>
+      <button class="ctrl-btn" id="heaterBtn" data-device="heater">Heater: OFF</button>
+      <button class="ctrl-btn" id="ventBtn" data-device="servo" style="grid-column:span 2">Vent: CLOSED</button>
     </div>
+    <button class="ctrl-btn estop" id="allOffBtn">All Outputs Off</button>
+    <p id="pumpNote" style="font-size:12px;color:var(--danger);margin-top:12px;min-height:16px"></p>
+  </div>
 
-    <!-- Bottom Nav -->
-    <nav class="bottom-nav" id="bottomNav" style="display:none;">
-        <button class="nav-btn active" data-view="dashboard">Dashboard</button>
-        <button class="nav-btn" data-view="controls">Controls</button>
-        <button class="nav-btn" data-view="data">Data</button>
-        <button class="nav-btn" data-view="ai">AI</button>
-        <button class="nav-btn" data-view="settings">Config</button>
-    </nav>
+  <div class="view" id="view-data">
+    <h2>Data Archive</h2>
+    <div style="display:flex;gap:10px;margin-bottom:20px">
+      <button id="exportCsvBtn" class="btn-secondary">Export CSV</button>
+      <button id="exportPdfBtn" class="btn-secondary">Export PDF</button>
+    </div>
+    <div class="chart-box" style="height:300px"><h3>Historical Trend</h3><canvas id="chartHistory"></canvas></div>
+    <div class="table-wrapper"><table class="excel-table">
+      <thead><tr><th>Time</th><th>Temp</th><th>Hum</th><th>Soil</th><th>STemp</th><th>Water</th><th>Fan</th><th>Pump</th></tr></thead>
+      <tbody id="tableBody"></tbody></table></div>
+    <div class="form-card"><h3>Alert Log</h3><div id="alertLog"></div><button id="clearLogBtn" class="btn-secondary">Clear Log</button></div>
+  </div>
 
-    <script>
-        const $ = id => document.getElementById(id);
-        let ws, charts = {}, allData = [], currentAutoMode = true, lastSaveTime = 0;
+  <div class="view" id="view-ai">
+    <h2>AI Assistant</h2>
+    <div class="ai-chat-history" id="aiOut">STANDBY... AWAITING QUERY.</div>
+    <input type="text" id="aiIn" class="form-input" placeholder="Ask the AI..." style="margin-bottom:10px;width:100%">
+    <button id="askAiBtn" class="btn-primary">EXECUTE QUERY</button>
+    <button id="diagBtn" class="btn-secondary">DIAGNOSE GREENHOUSE</button>
+    <button id="predictHarvestBtn" class="btn-secondary">PREDICT HARVEST</button>
+  </div>
 
-        // --- Connection Logic (Local & Global) ---
-        function connectESP() {
-            const inputVal = $('ipInput').value.trim();
-            if (!inputVal) return $('connErr').textContent = 'IP OR URL REQUIRED.';
-            localStorage.setItem('esp_ip', inputVal);
-            
-            let wsUrl = '';
-            if (inputVal.startsWith('http')) {
-                let url = new URL(inputVal);
-                wsUrl = 'wss://' + url.hostname; // Global Cloudflare Tunnel
-            } else {
-                wsUrl = 'ws://' + inputVal + ':81'; // Local IP
-            }
-            
-            ws = new WebSocket(wsUrl);
-            ws.onopen = () => {
-                $('connectScreen').style.display = 'none';
-                $('appHeader').style.display = 'flex';
-                $('appContent').style.display = 'block';
-                $('bottomNav').style.display = 'flex';
-                $('statusDot').classList.add('connected');
-                loadSettings();
-            };
-            ws.onclose = () => {
-                $('connectScreen').style.display = 'flex';
-                $('appHeader').style.display = 'none';
-                $('appContent').style.display = 'none';
-                $('bottomNav').style.display = 'none';
-                $('connErr').textContent = 'LINK SEVERED. CHECK IP OR TUNNEL.';
-            };
-            ws.onmessage = (e) => {
-                const d = JSON.parse(e.data);
-                updateUI(d);
-                updateCharts(d);
-                allData.push({...d, time: new Date().toLocaleTimeString()});
-                if (allData.length > 150) allData.shift();
-                if (Date.now() - lastSaveTime > 30000) { localStorage.setItem('abrt_data', JSON.stringify(allData)); lastSaveTime = Date.now(); }
-            };
-        }
+  <div class="view" id="view-settings">
+    <h2>Config</h2>
+    <div class="form-card">
+      <h3>GREENHOUSE LIMITS</h3>
+      <div class="two-col">
+        <div class="form-group"><label>Max Temp °C</label><input type="number" id="cfgTempMax" class="form-input"></div>
+        <div class="form-group"><label>Min Temp °C</label><input type="number" id="cfgTempMin" class="form-input"></div>
+        <div class="form-group"><label>Max Humidity %</label><input type="number" id="cfgHumMax" class="form-input"></div>
+        <div class="form-group"><label>Water Soil Below %</label><input type="number" id="cfgSoilMin" class="form-input"></div>
+        <div class="form-group"><label>Tank Empty At %</label><input type="number" id="cfgWaterMin" class="form-input"></div>
+        <div class="form-group"><label>Pump Max Run (s)</label><input type="number" id="cfgPumpMax" class="form-input"></div>
+      </div>
+      <button id="saveCfgBtn" class="btn-primary">SEND TO GREENHOUSE</button>
+    </div>
+    <div class="form-card">
+      <h3>LOCAL AI (OLLAMA)</h3>
+      <div class="form-group"><label>API Endpoint URL</label><input type="text" id="lmUrl" class="form-input" placeholder="http://192.168.1.100:11434/v1/chat/completions"></div>
+      <div class="form-group"><label>Model</label><input type="text" id="lmModel" class="form-input" placeholder="qwen2.5:1.5b"></div>
+      <button id="saveSettingsBtn" class="btn-primary">SAVE AI CONFIG</button>
+    </div>
+    <div class="form-card">
+      <h3>CONNECTION</h3>
+      <p id="connInfo" style="font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all"></p>
+      <button id="changeConnBtn" class="btn-secondary" style="margin-top:0">Change / Disconnect</button>
+    </div>
+    <div class="form-card" style="text-align:center">
+      <h3>ABOUT</h3>
+      <p style="font-size:14px;font-weight:700">HBRT AGRO Smart Greenhouse</p>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 14px">Version 2.0</p>
+      <p style="font-size:12px;color:var(--muted)">Developed by</p>
+      <p style="font-size:15px;font-weight:700;margin-top:4px">Mostafa Mesbah Aabedi</p>
+      <p style="font-size:15px;font-weight:700">Milad Ahmadi</p>
+    </div>
+  </div>
+</div>
 
-        function sendCmd(device, value) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ device, value })); }
+<nav class="bottom-nav" id="bottomNav" style="display:none">
+  <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+  <button class="nav-btn" data-view="controls">Controls</button>
+  <button class="nav-btn" data-view="data">Data</button>
+  <button class="nav-btn" data-view="ai">AI</button>
+  <button class="nav-btn" data-view="settings">Config</button>
+</nav>
+<div id="toast"></div>
 
-        // --- UI & Gauges ---
-        function setRingProgress(id, val, max) {
-            const ring = $(id); if(!ring) return;
-            const c = 2 * Math.PI * 54; const p = Math.min(val/max, 1);
-            ring.style.strokeDashoffset = c * (1 - p);
-        }
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : v; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+};
+const num = (v, d=0) => (typeof v === 'number' && isFinite(v)) ? v : d;
+let charts = {}, allData = [], alertLog = [], currentAutoMode = true, lastSaveTime = 0, lastD = null, cfgFilled = false;
+try { allData = JSON.parse(store.get('abrt_data','[]')) || []; } catch(e){ allData = []; }
+try { alertLog = JSON.parse(store.get('abrt_alerts','[]')) || []; } catch(e){ alertLog = []; }
 
-        function updateUI(d) {
-            currentAutoMode = d.auto;
-            $('modeBadge').textContent = currentAutoMode ? 'AUTO' : 'MANUAL';
-            $('modeBtn').textContent = currentAutoMode ? 'Switch to Manual' : 'Switch to Auto';
-            $('modeBtn').className = 'ctrl-btn ' + (currentAutoMode ? 'on' : '');
-            
-            $('temp').textContent = d.temperature.toFixed(1); setRingProgress('ring_temp', d.temperature, 50);
-            $('hum').textContent = d.humidity.toFixed(1); setRingProgress('ring_hum', d.humidity, 100);
-            $('soil').textContent = d.soil; setRingProgress('ring_soil', d.soil, 100);
-            $('soiltemp').textContent = d.soilTemp.toFixed(1); setRingProgress('ring_soiltemp', d.soilTemp, 50);
-            $('water').textContent = d.water; setRingProgress('ring_water', d.water, 100);
-            
-            $('fanBtn').textContent = `Fan: ${d.fan ? 'ON' : 'OFF'}`; $('fanBtn').className = 'ctrl-btn ' + (d.fan ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
-            $('pumpBtn').textContent = `Pump: ${d.pump ? 'ON' : 'OFF'}`; $('pumpBtn').className = 'ctrl-btn ' + (d.pump ? 'danger' : '') + (currentAutoMode ? ' locked' : '');
-            $('lightsBtn').textContent = `Lights: ${d.lights ? 'ON' : 'OFF'}`; $('lightsBtn').className = 'ctrl-btn ' + (d.lights ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
-            $('heaterBtn').textContent = `Heater: ${d.heater ? 'ON' : 'OFF'}`; $('heaterBtn').className = 'ctrl-btn ' + (d.heater ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
-            $('ventBtn').textContent = `Vent: ${d.servo ? 'OPEN' : 'CLOSED'}`; $('ventBtn').className = 'ctrl-btn ' + (d.servo ? 'warn' : '') + (currentAutoMode ? ' locked' : '');
-        }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove('show'),2200); }
 
-        // --- Charts ---
-        function makeChart(ctx, datasets) {
-            return new Chart(ctx, { type: 'line', data: { labels: [], datasets }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color: '#E0E0E0' } } }, scales: { x: { display: false }, y: { ticks: { color: '#7A9080' }, grid: { color: 'rgba(46,139,87,0.1)' } } } } });
-        }
-        charts.th = makeChart($('chartTH').getContext('2d'), [{label:'Temp',data:[],borderColor:'#FF8C00',tension:.3,borderWidth:2},{label:'Hum',data:[],borderColor:'#39FF14',tension:.3,borderWidth:2}]);
-        charts.sw = makeChart($('chartSW').getContext('2d'), [{label:'Soil',data:[],borderColor:'#2E8B57',tension:.3,borderWidth:2},{label:'Tank',data:[],borderColor:'#00aaff',tension:.3,borderWidth:2}]);
-        charts.hist = makeChart($('chartHistory').getContext('2d'), [{label:'Temp',data:[],borderColor:'#FF8C00',tension:.3,borderWidth:2},{label:'Hum',data:[],borderColor:'#39FF14',tension:.3,borderWidth:2},{label:'Soil',data:[],borderColor:'#2E8B57',tension:.3,borderWidth:2},{label:'Tank',data:[],borderColor:'#00aaff',tension:.3,borderWidth:2}]);
+/* ================= CONNECTION MANAGER ================= */
+const C = { ws:null, wsUrl:'', tries:0, retryT:null, connT:null, lastMsg:0, manualClose:false, everOpened:false, shown:false };
 
-        function updateCharts(d) {
-            if(charts.th.data.labels.length > 30) { charts.th.data.labels.shift(); charts.sw.data.labels.shift(); charts.th.data.datasets[0].data.shift(); charts.th.data.datasets[1].data.shift(); charts.sw.data.datasets[0].data.shift(); charts.sw.data.datasets[1].data.shift(); }
-            charts.th.data.labels.push(''); charts.sw.data.labels.push('');
-            charts.th.data.datasets[0].data.push(d.temperature); charts.th.data.datasets[1].data.push(d.humidity);
-            charts.sw.data.datasets[0].data.push(d.soil); charts.sw.data.datasets[1].data.push(d.water);
-            charts.th.update('none'); charts.sw.update('none');
-        }
+function buildWsUrl(v){
+  v = v.trim();
+  if (/^wss?:\/\//i.test(v)) return v;
+  if (/^https?:\/\//i.test(v)) { const u = new URL(v); return (u.protocol==='https:'?'wss://':'ws://') + u.host; }   // Cloudflare tunnel
+  return 'ws://' + (v.includes(':') ? v : v + ':81');                                                              // local ESP32
+}
+function setState(s){
+  const dot = $('statusDot'), b = $('connBanner');
+  dot.className = 'status-dot' + (s==='online' ? ' connected' : s==='offline' ? '' : ' connecting');
+  if (s==='online'){ b.classList.remove('show'); }
+  else if (C.shown){ b.textContent = s==='connecting' ? 'CONNECTING TO GREENHOUSE...' : `CONNECTION LOST - RETRYING (attempt ${C.tries})`; b.classList.add('show'); $('modeBadge').textContent = 'OFFLINE'; }
+}
+function showApp(show){
+  C.shown = show;
+  $('connectScreen').style.display = show ? 'none' : 'flex';
+  $('appHeader').style.display = show ? 'flex' : 'none';
+  $('appContent').style.display = show ? 'block' : 'none';
+  $('bottomNav').style.display = show ? 'flex' : 'none';
+  if (!show) $('connBanner').classList.remove('show');
+}
+function connectESP(){
+  const v = $('ipInput').value.trim();
+  if (!v) return $('connErr').textContent = 'IP OR URL REQUIRED.';
+  try { C.wsUrl = buildWsUrl(v); } catch(e){ return $('connErr').textContent = 'INVALID ADDRESS.'; }
+  store.set('esp_ip', v);
+  $('connErr').textContent = '';
+  C.manualClose = false; C.tries = 0; C.everOpened = false;
+  openSocket();
+}
+function dropSocket(){
+  clearTimeout(C.connT);
+  if (C.ws){ C.ws.onopen = C.ws.onclose = C.ws.onerror = C.ws.onmessage = null; try{ C.ws.close(); }catch(e){} C.ws = null; }
+}
+function openSocket(){
+  clearTimeout(C.retryT); dropSocket();
+  setState('connecting');
+  $('connectBtn').textContent = 'CONNECTING...';
+  let ws;
+  try { ws = new WebSocket(C.wsUrl); } catch(e){ return onLost(); }
+  C.ws = ws;
+  C.connT = setTimeout(() => { if (ws.readyState !== 1) onLost(); }, 7000);   // connect timeout
+  ws.onopen = () => {
+    clearTimeout(C.connT);
+    C.tries = 0; C.everOpened = true; C.lastMsg = Date.now();
+    $('connectBtn').textContent = 'ESTABLISH LINK';
+    showApp(true); setState('online');
+    $('connInfo').textContent = 'Linked to ' + C.wsUrl;
+    loadSettings();
+  };
+  ws.onmessage = e => {
+    C.lastMsg = Date.now();
+    let d; try { d = JSON.parse(e.data); } catch(err){ return; }
+    if (d.pong) return;
+    if (typeof d.temperature !== 'number') return;
+    lastD = d;
+    updateUI(d); updateCharts(d); checkAlerts(d);
+    allData.push({...d, time: new Date().toLocaleTimeString(), ts: Date.now()});
+    if (allData.length > 150) allData.shift();
+    if (Date.now() - lastSaveTime > 30000) saveData();
+  };
+  ws.onerror = () => {};
+  ws.onclose = () => onLost();
+}
+function onLost(){
+  dropSocket();
+  $('connectBtn').textContent = 'ESTABLISH LINK';
+  if (C.manualClose) return;
+  if (!C.everOpened && !C.shown){      // first attempt failed: tell the user, don't loop silently
+    setState('offline');
+    $('connErr').textContent = 'COULD NOT CONNECT. CHECK IP / WI-FI / TUNNEL.';
+    return;
+  }
+  C.tries++;
+  setState('reconnecting');
+  const wait = Math.min(1000 * Math.pow(1.6, C.tries - 1), 10000);   // 1s, 1.6s, 2.6s ... max 10s
+  C.retryT = setTimeout(openSocket, wait);
+}
+function disconnect(){
+  C.manualClose = true; clearTimeout(C.retryT); dropSocket(); showApp(false); setState('offline');
+  $('connErr').textContent = '';
+}
+// Heartbeat + stale-data watchdog (ESP32 sends data every 2s)
+setInterval(() => {
+  if (!C.ws || C.ws.readyState !== 1) return;
+  if (Date.now() - C.lastMsg > 8000) { onLost(); return; }       // socket looks open but is dead
+  try { C.ws.send('{"ping":1}'); } catch(e){ onLost(); }
+}, 4000);
+// Reconnect right away when the phone wakes up or gets network back
+function kick(){ if (C.wsUrl && !C.manualClose && (!C.ws || C.ws.readyState > 1) && (C.everOpened || C.shown)) { C.tries = 0; openSocket(); } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveData(); else { if (C.ws && Date.now() - C.lastMsg > 8000) onLost(); kick(); } });
+window.addEventListener('online', kick);
 
-        // --- Data & PDF ---
-        function renderTable() {
-            $('tableBody').innerHTML = allData.slice().reverse().map(r => `<tr><td>${r.time}</td><td>${r.temperature.toFixed(1)}</td><td>${r.humidity.toFixed(1)}</td><td>${r.soil}</td><td>${r.soilTemp.toFixed(1)}</td><td>${r.water}</td><td>${r.fan?'ON':'OFF'}</td><td>${r.pump?'ON':'OFF'}</td></tr>`).join('');
-            const r = allData.slice(-100);
-            charts.hist.data.labels = r.map(d=>d.time); charts.hist.data.datasets[0].data = r.map(d=>d.temperature); charts.hist.data.datasets[1].data = r.map(d=>d.humidity); charts.hist.data.datasets[2].data = r.map(d=>d.soil); charts.hist.data.datasets[3].data = r.map(d=>d.water);
-            charts.hist.update();
-        }
-        function exportCSV() {
-            let csv = "Time,Temp,Hum,Soil,SoilTemp,Water,Fan,Pump,Lights,Heater,Vent\n";
-            allData.forEach(r => { csv += `${r.time},${r.temperature},${r.humidity},${r.soil},${r.soilTemp},${r.water},${r.fan},${r.pump},${r.lights},${r.heater},${r.servo}\n`; });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "hbrt_backup.csv"; a.click();
-        }
-        function exportPDF() {
-            const { jsPDF } = window.jspdf; const doc = new jsPDF();
-            doc.setFillColor(11, 20, 16); doc.rect(0, 0, 210, 40, 'F'); doc.setTextColor(57, 255, 20); doc.setFontSize(24); doc.text("HBRT GREENHOUSE REPORT", 105, 25, { align: 'center' });
-            doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 50);
-            const imgData = charts.hist.toBase64Image(); doc.addImage(imgData, 'PNG', 20, 60, 170, 80);
-            doc.save("HBRT_Greenhouse_Report.pdf");
-        }
+function sendCmd(device, value){
+  if (C.ws && C.ws.readyState === 1){ C.ws.send(JSON.stringify({ device, value })); return true; }
+  toast('OFFLINE - COMMAND NOT SENT'); return false;
+}
+function saveData(){ store.set('abrt_data', JSON.stringify(allData)); lastSaveTime = Date.now(); }
 
-        // --- AI ---
-        function saveSettings() { localStorage.setItem('lm_url', $('lmUrl').value); alert("SAVED!"); }
-        function loadSettings() { $('lmUrl').value = localStorage.getItem('lm_url') || 'http://192.168.1.100:11434/v1/chat/completions'; }
-        async function callAI(prompt) {
-            $('aiOut').textContent = "PROCESSING QUERY...";
-            try {
-                const res = await fetch($('lmUrl').value, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: "qwen2.5:1.5b", messages: [{role: "user", content: prompt}], temperature: 0.7 }) });
-                const data = await res.json(); $('aiOut').textContent = data.choices[0].message.content;
-            } catch (e) { $('aiOut').textContent = "ERROR: AI CORE UNREACHABLE."; }
-        }
+/* ================= UI ================= */
+function setRingProgress(id, val, max){
+  const ring = $(id); if (!ring) return;
+  ring.style.strokeDashoffset = 2*Math.PI*54 * (1 - Math.min(Math.max(val/max,0),1));
+}
+function fmtUp(s){ const h=Math.floor(s/3600), m=Math.floor(s%3600/60); return h>=24 ? Math.floor(h/24)+'d '+h%24+'h' : h+'h '+m+'m'; }
+function updateUI(d){
+  currentAutoMode = !!d.auto;
+  $('modeBadge').textContent = currentAutoMode ? 'AUTO' : 'MANUAL';
+  $('modeBtn').textContent = currentAutoMode ? 'Switch to Manual' : 'Switch to Auto';
+  $('modeBtn').className = 'ctrl-btn ' + (currentAutoMode ? 'on' : '');
+  $('temp').textContent = num(d.temperature).toFixed(1); setRingProgress('ring_temp', d.temperature, 50);
+  $('hum').textContent = num(d.humidity).toFixed(1);     setRingProgress('ring_hum', d.humidity, 100);
+  $('soil').textContent = num(d.soil);                   setRingProgress('ring_soil', d.soil, 100);
+  $('soiltemp').textContent = num(d.soilTemp).toFixed(1);setRingProgress('ring_soiltemp', d.soilTemp, 50);
+  $('water').textContent = num(d.water);                 setRingProgress('ring_water', d.water, 100);
+  const lk = currentAutoMode ? ' locked' : '';
+  const set = (id, label, on, cls, extra='') => { $(id).textContent = `${label}: ${on?'ON':'OFF'}`; $(id).className = 'ctrl-btn ' + (on?cls:'') + lk + extra; };
+  set('fanBtn','Fan',d.fan,'warn'); set('pumpBtn','Pump',d.pump,'danger'); set('lightsBtn','Lights',d.lights,'warn'); set('heaterBtn','Heater',d.heater,'warn');
+  $('ventBtn').textContent = `Vent: ${d.servo?'OPEN':'CLOSED'}`; $('ventBtn').className = 'ctrl-btn ' + (d.servo?'warn':'') + lk;
+  $('ventBtn').style.gridColumn = 'span 2';
+  $('sysRssi').textContent = d.rssi ? d.rssi + ' dBm' : '--';
+  $('sysUp').textContent = fmtUp(num(d.uptime));
+  $('pumpNote').textContent = d.pumpLock ? 'Pump locked for cooling after running too long.' : (d.water <= (d.cfg?.waterMin ?? 5) ? 'Tank is empty - pump blocked.' : '');
+  if (d.cfg && !cfgFilled) fillCfg(d.cfg);
+}
+setInterval(() => { $('sysAge').textContent = C.lastMsg ? Math.round((Date.now()-C.lastMsg)/1000) + 's ago' : '--'; }, 1000);
 
-        // --- Events ---
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            $('view-' + btn.dataset.view).classList.add('active');
-            btn.classList.add('active');
-            if (btn.dataset.view === 'data') renderTable();
-        }));
+function fillCfg(c){
+  $('cfgTempMax').value = c.tempMax; $('cfgTempMin').value = c.tempMin; $('cfgHumMax').value = c.humMax;
+  $('cfgSoilMin').value = c.soilMin; $('cfgWaterMin').value = c.waterMin; $('cfgPumpMax').value = c.pumpMax;
+  cfgFilled = true;
+}
+function saveCfg(){
+  const n = id => parseFloat($(id).value);
+  const p = { device:'config', tempMax:n('cfgTempMax'), tempMin:n('cfgTempMin'), humMax:n('cfgHumMax'), soilMin:n('cfgSoilMin'), waterMin:n('cfgWaterMin'), pumpMax:n('cfgPumpMax') };
+  if ([p.tempMax,p.tempMin,p.humMax,p.soilMin,p.waterMin,p.pumpMax].some(isNaN)) return toast('FILL ALL FIELDS');
+  if (p.tempMin >= p.tempMax) return toast('MIN TEMP MUST BE BELOW MAX');
+  if (C.ws && C.ws.readyState === 1){ C.ws.send(JSON.stringify(p)); toast('SAVED TO GREENHOUSE'); } else toast('OFFLINE - NOT SAVED');
+}
 
-        $('connectBtn').addEventListener('click', connectESP);
-        $('modeBtn').addEventListener('click', () => sendCmd('auto', !currentAutoMode));
-        document.querySelectorAll('.ctrl-btn[data-device]').forEach(btn => btn.addEventListener('click', () => {
-            const dev = btn.dataset.device; let state = false;
-            if(dev === 'fan' || dev === 'servo' || dev === 'lights' || dev === 'heater') state = btn.classList.contains('warn');
-            if(dev === 'pump') state = btn.classList.contains('danger');
-            sendCmd(dev, !state);
-        }));
-        $('exportCsvBtn').addEventListener('click', exportCSV);
-        $('exportPdfBtn').addEventListener('click', exportPDF);
-        $('saveSettingsBtn').addEventListener('click', saveSettings);
-        $('askAiBtn').addEventListener('click', () => {
-            const t = $('temp').textContent, h = $('hum').textContent, s = $('soil').textContent, st = $('soiltemp').textContent, w = $('water').textContent;
-            callAI(`You are an AI greenhouse core. Data: Temp=${t}C, Hum=${h}%, Soil=${s}%, SoilTemp=${st}C, Water=${w}%. Question: ${$('aiIn').value || "Provide a 1 sentence status summary."}`);
-        });
-        $('predictHarvestBtn').addEventListener('click', () => {
-            if (allData.length < 10) return alert("NOT ENOUGH DATA. WAIT 20 SECONDS.");
-            const avgT = (allData.reduce((a,b) => a + b.temperature, 0) / allData.length).toFixed(1);
-            const avgH = (allData.reduce((a,b) => a + b.humidity, 0) / allData.length).toFixed(1);
-            const avgS = (allData.reduce((a,b) => a + b.soil, 0) / allData.length).toFixed(1);
-            const avgST = (allData.reduce((a,b) => a + b.soilTemp, 0) / allData.length).toFixed(1);
-            callAI(`You are an expert agronomist AI. Based on greenhouse averages: Temp=${avgT}C, Hum=${avgH}%, Soil=${avgS}%, SoilTemp=${avgST}C. Predict harvest date and yield for tomatoes.`);
-        });
+/* ================= ALERTS ================= */
+let activeAlerts = {};
+function checkAlerts(d){
+  const c = d.cfg || {}, now = {};
+  if (c.tempMax != null && d.temperature > c.tempMax) now.hot = 'HIGH TEMPERATURE ' + d.temperature.toFixed(1) + '°C';
+  if (c.tempMin != null && d.temperature < c.tempMin) now.cold = 'LOW TEMPERATURE ' + d.temperature.toFixed(1) + '°C';
+  if (c.humMax != null && d.humidity > c.humMax) now.hum = 'HIGH HUMIDITY ' + d.humidity.toFixed(0) + '%';
+  if (c.soilMin != null && d.soil < c.soilMin) now.soil = 'SOIL DRY ' + d.soil + '%';
+  if (c.waterMin != null && d.water <= c.waterMin) now.tank = 'WATER TANK EMPTY';
+  if (d.pumpLock) now.lock = 'PUMP LOCKED (RAN TOO LONG)';
+  if (d.dhtOk === false) now.dht = 'AIR SENSOR FAULT (DHT)';
+  if (d.stOk === false) now.st = 'SOIL TEMP SENSOR FAULT';
+  let fresh = false;
+  for (const k in now) if (!activeAlerts[k]) { alertLog.unshift({ t:new Date().toLocaleString(), m:now[k] }); fresh = true; }
+  activeAlerts = now;
+  if (fresh){ alertLog = alertLog.slice(0,50); store.set('abrt_alerts', JSON.stringify(alertLog)); if (navigator.vibrate) navigator.vibrate([200,100,200]); }
+  const box = $('alertBox'), list = Object.values(now);
+  box.innerHTML = list.map(m => '⚠ ' + m).join('<br>'); box.classList.toggle('show', list.length > 0);
+}
+function renderLog(){
+  $('alertLog').innerHTML = alertLog.length ? alertLog.map(a => `<div class="log-row"><b>${a.m}</b><br>${a.t}</div>`).join('') : '<div class="log-row">No alerts recorded.</div>';
+}
 
-        // Init
-        const savedIp = localStorage.getItem('esp_ip'); if (savedIp) $('ipInput').value = savedIp;
-    </script>
+/* ================= CHARTS ================= */
+function makeChart(ctx, datasets){
+  return new Chart(ctx, { type:'line', data:{ labels:[], datasets }, options:{ responsive:true, maintainAspectRatio:false, animation:false, plugins:{ legend:{ labels:{ color:'#E0E0E0' } } }, scales:{ x:{ display:false }, y:{ ticks:{ color:'#7A9080' }, grid:{ color:'rgba(46,139,87,.1)' } } } } });
+}
+const ds = (label, color) => ({ label, data:[], borderColor:color, tension:.3, borderWidth:2, pointRadius:0 });
+charts.th = makeChart($('chartTH').getContext('2d'), [ds('Temp','#FF8C00'), ds('Hum','#39FF14')]);
+charts.sw = makeChart($('chartSW').getContext('2d'), [ds('Soil','#2E8B57'), ds('Tank','#00aaff')]);
+charts.hist = makeChart($('chartHistory').getContext('2d'), [ds('Temp','#FF8C00'), ds('Hum','#39FF14'), ds('Soil','#2E8B57'), ds('Tank','#00aaff')]);
+function updateCharts(d){
+  if (charts.th.data.labels.length > 30){ [charts.th, charts.sw].forEach(c => { c.data.labels.shift(); c.data.datasets.forEach(s => s.data.shift()); }); }
+  charts.th.data.labels.push(''); charts.sw.data.labels.push('');
+  charts.th.data.datasets[0].data.push(d.temperature); charts.th.data.datasets[1].data.push(d.humidity);
+  charts.sw.data.datasets[0].data.push(d.soil); charts.sw.data.datasets[1].data.push(d.water);
+  charts.th.update('none'); charts.sw.update('none');
+}
+
+/* ================= DATA / EXPORT ================= */
+function renderTable(){
+  $('tableBody').innerHTML = allData.slice().reverse().map(r => `<tr><td>${r.time}</td><td>${num(r.temperature).toFixed(1)}</td><td>${num(r.humidity).toFixed(1)}</td><td>${r.soil}</td><td>${num(r.soilTemp).toFixed(1)}</td><td>${r.water}</td><td>${r.fan?'ON':'OFF'}</td><td>${r.pump?'ON':'OFF'}</td></tr>`).join('');
+  const r = allData.slice(-100);
+  charts.hist.data.labels = r.map(d => d.time);
+  ['temperature','humidity','soil','water'].forEach((k,i) => charts.hist.data.datasets[i].data = r.map(d => d[k]));
+  charts.hist.update(); renderLog();
+}
+// Android WebView cannot download blobs, so on the APK we write the file and open the share sheet
+async function saveFile(name, data, isBase64, mime){
+  const cap = window.Capacitor, FS = cap && cap.Plugins && cap.Plugins.Filesystem, SH = cap && cap.Plugins && cap.Plugins.Share;
+  if (FS){
+    try {
+      const r = await FS.writeFile(isBase64 ? { path:name, data, directory:'CACHE' } : { path:name, data, directory:'CACHE', encoding:'utf8' });
+      if (SH) await SH.share({ title:name, url:r.uri, dialogTitle:'Save or share ' + name }); else toast('Saved ' + name);
+    } catch(e){ toast('SAVE FAILED'); }
+    return;
+  }
+  const blob = isBase64 ? new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type:mime }) : new Blob([data], { type:mime });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+function exportCSV(){
+  if (!allData.length) return toast('NO DATA YET');
+  let csv = "Time,Temp,Hum,Soil,SoilTemp,Water,Fan,Pump,Lights,Heater,Vent\n";
+  allData.forEach(r => { csv += `${r.time},${r.temperature},${r.humidity},${r.soil},${r.soilTemp},${r.water},${r.fan},${r.pump},${r.lights},${r.heater},${r.servo}\n`; });
+  saveFile('hbrt_backup.csv', csv, false, 'text/csv');
+}
+function stat(k){ const v = allData.map(r => r[k]).filter(x => typeof x === 'number'); return v.length ? { min:Math.min(...v), max:Math.max(...v), avg:v.reduce((a,b)=>a+b,0)/v.length } : null; }
+function exportPDF(){
+  if (!allData.length) return toast('NO DATA YET');
+  const { jsPDF } = window.jspdf; const doc = new jsPDF();
+  doc.setFillColor(11,20,16); doc.rect(0,0,210,40,'F'); doc.setTextColor(57,255,20); doc.setFontSize(24); doc.text("HBRT GREENHOUSE REPORT", 105, 25, { align:'center' });
+  doc.setTextColor(0,0,0); doc.setFontSize(12); doc.text(`Date: ${new Date().toLocaleString()}   Samples: ${allData.length}`, 20, 50);
+  let y = 60;
+  [['temperature','Air Temp (C)'],['humidity','Humidity (%)'],['soil','Soil Moisture (%)'],['soilTemp','Soil Temp (C)'],['water','Water Tank (%)']].forEach(([k,l]) => {
+    const s = stat(k); if (s){ doc.text(`${l}:  min ${s.min.toFixed(1)}   avg ${s.avg.toFixed(1)}   max ${s.max.toFixed(1)}`, 20, y); y += 8; }
+  });
+  renderTable();
+  doc.addImage(charts.hist.toBase64Image(), 'PNG', 20, y + 5, 170, 80);
+  doc.setFontSize(10); doc.setTextColor(120); doc.text("HBRT AGRO - Mostafa Mesbah Aabedi & Milad Ahmadi", 105, 285, { align:'center' });
+  saveFile('HBRT_Greenhouse_Report.pdf', doc.output('datauristring').split(',')[1], true, 'application/pdf');
+}
+
+/* ================= AI ================= */
+function saveSettings(){ store.set('lm_url', $('lmUrl').value.trim()); store.set('lm_model', $('lmModel').value.trim()); toast('AI CONFIG SAVED'); }
+function loadSettings(){ $('lmUrl').value = store.get('lm_url','http://192.168.1.100:11434/v1/chat/completions'); $('lmModel').value = store.get('lm_model','qwen2.5:1.5b'); }
+async function callAI(prompt){
+  $('aiOut').textContent = "PROCESSING QUERY...";
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 60000);
+  try {
+    const res = await fetch($('lmUrl').value.trim(), { method:'POST', signal:ctl.signal, headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ model:$('lmModel').value.trim() || 'qwen2.5:1.5b', messages:[{ role:'user', content:prompt }], temperature:.7 }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json(); $('aiOut').textContent = data.choices[0].message.content;
+  } catch(e){ $('aiOut').textContent = e.name === 'AbortError' ? "ERROR: AI TIMED OUT (60s)." : "ERROR: AI CORE UNREACHABLE. CHECK URL, WI-FI AND OLLAMA_ORIGINS=*"; }
+  clearTimeout(to);
+}
+function snapshot(){ return `Temp=${$('temp').textContent}C, Hum=${$('hum').textContent}%, Soil=${$('soil').textContent}%, SoilTemp=${$('soiltemp').textContent}C, Water=${$('water').textContent}%`; }
+
+/* ================= EVENTS ================= */
+document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  $('view-' + btn.dataset.view).classList.add('active'); btn.classList.add('active');
+  if (btn.dataset.view === 'data') renderTable();
+}));
+$('connectBtn').addEventListener('click', connectESP);
+$('ipInput').addEventListener('keydown', e => { if (e.key === 'Enter') connectESP(); });
+$('modeBtn').addEventListener('click', () => sendCmd('auto', !currentAutoMode));
+document.querySelectorAll('.ctrl-btn[data-device]').forEach(btn => btn.addEventListener('click', () => {
+  const dev = btn.dataset.device;
+  const on = dev === 'pump' ? btn.classList.contains('danger') : btn.classList.contains('warn');
+  sendCmd(dev, !on);
+}));
+$('allOffBtn').addEventListener('click', () => { if (!confirm('Turn all outputs off and switch to manual?')) return; ['fan','pump','lights','heater','servo'].forEach(d => sendCmd(d, false)); });
+$('exportCsvBtn').addEventListener('click', exportCSV);
+$('exportPdfBtn').addEventListener('click', exportPDF);
+$('clearLogBtn').addEventListener('click', () => { alertLog = []; store.set('abrt_alerts','[]'); renderLog(); });
+$('saveSettingsBtn').addEventListener('click', saveSettings);
+$('saveCfgBtn').addEventListener('click', saveCfg);
+$('changeConnBtn').addEventListener('click', disconnect);
+$('askAiBtn').addEventListener('click', () => callAI(`You are an AI greenhouse core. Data: ${snapshot()}. Question: ${$('aiIn').value || "Provide a 1 sentence status summary."}`));
+$('diagBtn').addEventListener('click', () => {
+  const al = Object.values(activeAlerts).join('; ') || 'none';
+  callAI(`You are a greenhouse technician AI. Data: ${snapshot()}. Active alerts: ${al}. Give a short diagnosis and up to 3 concrete actions.`);
+});
+$('predictHarvestBtn').addEventListener('click', () => {
+  if (allData.length < 10) return toast("NOT ENOUGH DATA. WAIT 20 SECONDS.");
+  const avg = k => (allData.reduce((a,b) => a + num(b[k]), 0) / allData.length).toFixed(1);
+  callAI(`You are an expert agronomist AI. Based on greenhouse averages: Temp=${avg('temperature')}C, Hum=${avg('humidity')}%, Soil=${avg('soil')}%, SoilTemp=${avg('soilTemp')}C. Predict harvest date and yield for tomatoes.`);
+});
+
+/* ================= INIT ================= */
+const savedIp = store.get('esp_ip',''); if (savedIp) { $('ipInput').value = savedIp; setTimeout(connectESP, 300); }   // auto-connect on launch
+</script>
 </body>
 </html>
